@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title> Tic-Tac-Toe</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    :root {
+      --bg-light: #f5f5f5;
+      --bg-dark: #1e1e1e;
+      --text-light: #1e1e1e;
+      --text-dark: #f5f5f5;
+      --primary: #6a11cb;
+      --secondary: #2575fc;
+      --cell-bg: rgba(255, 255, 255, 0.1);
+      --win-bg: #2ecc71;
+    }
+
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(to right, var(--primary), var(--secondary));
+      color: var(--text-dark);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      transition: background 0.5s, color 0.5s;
+    }
+
+    body.light {
+      background: var(--bg-light);
+      color: var(--text-light);
+    }
+
+    h1 {
+      text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.4);
+      transition: color 0.3s;
+    }
+
+    .toggle-theme {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      padding: 8px 16px;
+      background: #00000044;
+      border-radius: 20px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 14px;
+      border: none;
+    }
+
+    .scoreboard, .leaderboard {
+      margin: 10px 0;
+      font-size: 18px;
+      text-align: center;
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: repeat(3, 100px);
+      gap: 10px;
+      margin: 20px 0;
+      transition: all 0.3s ease;
+    }
+
+    .cell {
+      width: 100px;
+      height: 100px;
+      font-size: 2.5rem;
+      font-weight: bold;
+      background: var(--cell-bg);
+      color: inherit;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.3s, transform 0.2s;
+    }
+
+    .cell:hover {
+      transform: scale(1.05);
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    body.light .cell {
+      background: #ffffff;
+      border: 2px solid #ccc;
+    }
+
+    body.light .cell:hover {
+      background: #eee;
+    }
+
+    .win {
+      background-color: var(--win-bg) !important;
+      color: black;
+      animation: pop 0.5s ease-in-out;
+    }
+
+    @keyframes pop {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.2); }
+      100% { transform: scale(1); }
+    }
+
+    .controls {
+      margin: 10px 0;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+    }
+
+    select, button {
+      padding: 10px;
+      font-size: 16px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+    }
+
+    button {
+      background-color: #f39c12;
+      color: white;
+    }
+
+    button:hover {
+      background-color: #e67e22;
+    }
+
+    .restart {
+      background-color: #1abc9c;
+    }
+
+    .restart:hover {
+      background-color: #16a085;
+    }
+
+    @media (max-width: 400px) {
+      .board {
+        grid-template-columns: repeat(3, 80px);
+      }
+
+      .cell {
+        width: 80px;
+        height: 80px;
+        font-size: 2rem;
+      }
+    }
+  </style>
+</head>
+<body class="dark">
+  <button class="toggle-theme" onclick="toggleTheme()">🌗 Toggle Theme</button>
+  <h1>🎮 Tic Tac Toe</h1>
+  <div class="scoreboard" id="score">Player X: 0 | Player O: 0</div>
+  <div class="leaderboard" id="leaderboard">🏅 Wins - X: 0 | O: 0</div>
+  <div class="board" id="board"></div>
+  <div class="controls">
+    <button class="restart" onclick="resetGame()">🔄 Restart</button>
+    <button onclick="toggleMode()">Mode: <span id="mode">vs Computer</span></button>
+    <select id="difficulty" onchange="resetGame()">
+      <option value="easy">Easy</option>
+      <option value="medium">Medium</option>
+      <option value="hard" selected>Hard</option>
+    </select>
+  </div>
+  <div id="status">Player X's Turn</div>
+
+  <!-- Sound effects -->
+  <audio id="clickSound" src="https://www.soundjay.com/button/beep-07.wav"></audio>
+  <audio id="winSound" src="https://www.soundjay.com/button/beep-08b.wav"></audio>
+  <audio id="drawSound" src="https://www.soundjay.com/button/beep-10.wav"></audio>
+
+  <script>
+    const boardEl = document.getElementById("board");
+    const statusEl = document.getElementById("status");
+    const modeText = document.getElementById("mode");
+    const scoreEl = document.getElementById("score");
+    const leaderboardEl = document.getElementById("leaderboard");
+    const difficultySelect = document.getElementById("difficulty");
+    const clickSound = document.getElementById("clickSound");
+    const winSound = document.getElementById("winSound");
+    const drawSound = document.getElementById("drawSound");
+
+    let board = Array(9).fill("");
+    let currentPlayer = "X";
+    let gameOver = false;
+    let vsComputer = true;
+    let scores = { X: 0, O: 0 };
+
+    const winPatterns = [
+      [0,1,2], [3,4,5], [6,7,8],
+      [0,3,6], [1,4,7], [2,5,8],
+      [0,4,8], [2,4,6]
+    ];
+
+    function loadLeaderboard() {
+      scores.X = +localStorage.getItem("scoreX") || 0;
+      scores.O = +localStorage.getItem("scoreO") || 0;
+      updateScore();
+    }
+
+    function saveLeaderboard() {
+      localStorage.setItem("scoreX", scores.X);
+      localStorage.setItem("scoreO", scores.O);
+    }
+
+    function drawBoard() {
+      boardEl.innerHTML = "";
+      board.forEach((val, i) => {
+        const cell = document.createElement("div");
+        cell.classList.add("cell");
+        cell.textContent = val;
+        cell.addEventListener("click", () => handleClick(i));
+        boardEl.appendChild(cell);
+      });
+      updateStatus();
+      updateScore();
+    }
+
+    function updateStatus() {
+      statusEl.textContent = `Player ${currentPlayer}'s Turn${vsComputer && currentPlayer === "O" ? " (Computer)" : ""}`;
+    }
+
+    function updateScore() {
+      scoreEl.textContent = `Player X: ${scores.X} | Player O: ${scores.O}`;
+      leaderboardEl.textContent = `🏅 Wins - X: ${scores.X} | O: ${scores.O}`;
+    }
+
+    function handleClick(index) {
+      if (board[index] || gameOver) return;
+      board[index] = currentPlayer;
+      clickSound.play();
+      drawBoard();
+
+      if (checkWin(currentPlayer)) {
+        statusEl.textContent = `🎉 Player ${currentPlayer} wins!`;
+        highlightWin(currentPlayer);
+        winSound.play();
+        scores[currentPlayer]++;
+        gameOver = true;
+        saveLeaderboard();
+        return;
+      }
+
+      if (board.every(cell => cell)) {
+        statusEl.textContent = "😐 It's a draw!";
+        drawSound.play();
+        gameOver = true;
+        return;
+      }
+
+      currentPlayer = currentPlayer === "X" ? "O" : "X";
+      updateStatus();
+
+      if (vsComputer && currentPlayer === "O" && !gameOver) {
+        setTimeout(() => {
+          let move = getComputerMove();
+          handleClick(move);
+        }, 400);
+      }
+    }
+
+    function checkWin(player) {
+      return winPatterns.some(pattern =>
+        pattern.every(i => board[i] === player)
+      );
+    }
+
+    function highlightWin(player) {
+      winPatterns.forEach(pattern => {
+        if (pattern.every(i => board[i] === player)) {
+          pattern.forEach(i => {
+            boardEl.children[i].classList.add("win");
+          });
+        }
+      });
+    }
+
+    function resetGame() {
+      board = Array(9).fill("");
+      currentPlayer = "X";
+      gameOver = false;
+      drawBoard();
+    }
+
+    function toggleMode() {
+      vsComputer = !vsComputer;
+      modeText.textContent = vsComputer ? "vs Computer" : "2 Player";
+      resetGame();
+    }
+
+    function toggleTheme() {
+      document.body.classList.toggle("light");
+    }
+
+    function getComputerMove() {
+      const difficulty = difficultySelect.value;
+      if (difficulty === "easy") {
+        const empty = board.map((val, i) => val === "" ? i : null).filter(i => i !== null);
+        return empty[Math.floor(Math.random() * empty.length)];
+      } else if (difficulty === "medium") {
+        return Math.random() < 0.5 ? getBestMove() : getComputerMove("easy");
+      } else {
+        return getBestMove();
+      }
+    }
+
+    function getBestMove() {
+      let bestScore = -Infinity;
+      let move = -1;
+      for (let i = 0; i < 9; i++) {
+        if (board[i] === "") {
+          board[i] = "O";
+          let score = minimax(board, 0, false);
+          board[i] = "";
+          if (score > bestScore) {
+            bestScore = score;
+            move = i;
+          }
+        }
+      }
+      return move;
+    }
+
+    const scoreMap = { O: 1, X: -1, tie: 0 };
+
+    function minimax(newBoard, depth, isMax) {
+      if (checkWin("O")) return scoreMap.O;
+      if (checkWin("X")) return scoreMap.X;
+      if (newBoard.every(cell => cell)) return scoreMap.tie;
+
+      if (isMax) {
+        let best = -Infinity;
+        for (let i = 0; i < 9; i++) {
+          if (newBoard[i] === "") {
+            newBoard[i] = "O";
+            best = Math.max(best, minimax(newBoard, depth + 1, false));
+            newBoard[i] = "";
+          }
+        }
+        return best;
+      } else {
+        let best = Infinity;
+        for (let i = 0; i < 9; i++) {
+          if (newBoard[i] === "") {
+            newBoard[i] = "X";
+            best = Math.min(best, minimax(newBoard, depth + 1, true));
+            newBoard[i] = "";
+          }
+        }
+        return best;
+      }
+    }
+
+    loadLeaderboard();
+    drawBoard();
+  </script>
+</body>
+</html>
